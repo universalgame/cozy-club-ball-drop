@@ -1,0 +1,17 @@
+body {
+  background-color: #000;
+  color: #f9c6d4;
+  font-family: sans-serif;
+  text-align: center;
+  margin: 0;
+}
+#dropBtn {
+  background-color: #f9c6d4;
+  color: #000;
+  padding: 10px 30px;
+  font-size: 24px;
+  border: none;
+  border-radius: 10px;
+  margin-top: 20px;
+  cursor: pointer;
+}
