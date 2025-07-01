@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Cozy Club Ball Drop</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -11,5 +11,197 @@
   <canvas id="gameCanvas"></canvas>
   <button id="dropBtn">DROP</button>
   <script src="script.js"></script>
-</body>
-</html>
+</body>body {
+  margin: 0;
+  background-color: #000; /* Black background for a strong contrast */
+  color: #fff;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+#loading {
+  font-size: 24px;
+  margin-top: 20px;
+}
+
+#gameCanvas {
+  display: block;
+  margin: 20px auto;
+  background: url('cozy-background.png') no-repeat center;
+  background-size: cover;
+  border: 2px solid #333;
+  width: 360px;
+  height: 640px;
+}
+
+#dropBtn {
+  margin-top: 20px;
+  padding: 15px 40px;
+  font-size: 24px;
+  background-color: #f9c6d4; /* Pastel pink */
+  color: #000;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+}
+
+#dropBtn:active {
+  transform: scale(0.98);
+}
+</html>const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+canvas.width = 360;
+canvas.height = 640;
+
+const pegs = [];
+const columns = 7;  // As per your emoji zones: 🌸, ⭐, 🎮, 🎮, ☘️, ➖, 🔁
+const ballRadius = 8;
+let ball = null;
+let isDropping = false;
+let scoreText = '';
+let soundDrop = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_4ba878d408.mp3?filename=click-124467.mp3');
+
+// Define your scoring zones exactly as you want
+const scoringZones = [
+  { emoji: "🌸", points: 10000 },
+  { emoji: "⭐", points: 50000 },
+  { emoji: "🎮", points: 5000 },   // light blue game, lower score
+  { emoji: "🎮", points: 150000 }, // dark blue game, higher score
+  { emoji: "☘️", points: 50000 },
+  { emoji: "➖", points: 0, miss: true },
+  { emoji: "🔁", points: 0, repeat: true },
+];
+
+// Create pegs in a grid pattern for the ball to bounce off
+function createPegs() {
+  const rows = 6;
+  const cols = 7;
+  const spacingX = 50;
+  const spacingY = 60;
+  const offsetX = 40;
+  const offsetY = 100;
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = offsetX + col * spacingX + (row % 2 === 0 ? spacingX / 2 : 0);
+      const y = offsetY + row * spacingY;
+      pegs.push({ x, y });
+    }
+  }
+}
+
+function drawPegs() {
+  ctx.fillStyle = "#fff5d7"; // soft light color for pegs
+  pegs.forEach(peg => {
+    ctx.beginPath();
+    ctx.arc(peg.x, peg.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawBall() {
+  if (!ball) return;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ballRadius, 0, Math.PI * 2);
+  ctx.fillStyle = "#f9dc5c"; // a cozy yellow for the ball
+  ctx.fill();
+}
+
+function drawScoringZones() {
+  const zoneWidth = canvas.width / columns;
+  scoringZones.forEach((zone, i) => {
+    // Draw the zone background
+    ctx.fillStyle = "#222";
+    ctx.fillRect(i * zoneWidth, canvas.height - 60, zoneWidth, 60);
+    // Draw the emoji
+    ctx.fillStyle = "#fff";
+    ctx.font = "20px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(zone.emoji, i * zoneWidth + zoneWidth / 2, canvas.height - 25);
+    // Draw the points label if applicable
+    ctx.font = "12px sans-serif";
+    if (!zone.miss && !zone.repeat) {
+      ctx.fillText(zone.points.toLocaleString(), i * zoneWidth + zoneWidth / 2, canvas.height - 10);
+    }
+  });
+}
+
+function updateBall() {
+  if (!ball) return;
+  ball.vy += 0.3; // gravity
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+
+  // Collide with walls
+  if (ball.x < ballRadius || ball.x > canvas.width - ballRadius) {
+    ball.vx *= -1;
+    ball.x = Math.max(ballRadius, Math.min(canvas.width - ballRadius, ball.x));
+  }
+
+  // Collide with pegs
+  pegs.forEach(peg => {
+    const dx = ball.x - peg.x;
+    const dy = ball.y - peg.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < ballRadius + 4) {
+      const angle = Math.atan2(dy, dx);
+      const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+      ball.vx = speed * Math.cos(angle + Math.PI / 2);
+      ball.vy = speed * Math.sin(angle + Math.PI / 2);
+    }
+  });
+
+  // Detect landing on scoring zone
+  if (ball.y + ballRadius >= canvas.height - 60) {
+    const zoneWidth = canvas.width / columns;
+    const index = Math.floor(ball.x / zoneWidth);
+    const result = scoringZones[index];
+    if (result.miss) {
+      scoreText = "Miss a turn ➖";
+    } else if (result.repeat) {
+      scoreText = "Go again 🔁";
+    } else {
+      scoreText = `+${result.points.toLocaleString()} ${result.emoji}`;
+    }
+    isDropping = false;
+    ball = null;
+  }
+}
+
+function drawScore() {
+  if (scoreText) {
+    ctx.fillStyle = "#fff";
+    ctx.font = "24px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(scoreText, canvas.width / 2, 40);
+  }
+}
+
+function gameLoop() {
+  // Clear the canvas
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawPegs();
+  drawScoringZones();
+  drawBall();
+  updateBall();
+  drawScore();
+  requestAnimationFrame(gameLoop);
+}
+
+document.getElementById("dropBtn").addEventListener("click", () => {
+  if (!isDropping) {
+    ball = {
+      x: canvas.width / 2,
+      y: 50,
+      vx: (Math.random() - 0.5) * 2,
+      vy: 2,
+    };
+    isDropping = true;
+    scoreText = '';
+    soundDrop.play();
+  }
+});
+
+createPegs();
+gameLoop();
